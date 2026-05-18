@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Family Tree Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: families
+  - name: members
+  - name: posts
+  - name: comments
+  - name: media
+  - name: chat
+  - name: notifications
+  - name: events
+  - name: admin
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +32,1621 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── AUTH ──────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user (pending approval)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: User created, pending approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Logout current session
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+
+  /auth/verify-invite:
+    post:
+      operationId: verifyInviteToken
+      tags: [auth]
+      summary: Verify an invitation token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteVerifyInput"
+      responses:
+        "200":
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteVerifyResponse"
+
+  # ── FAMILIES ──────────────────────────────────────────────────────────
+  /families:
+    post:
+      operationId: createFamily
+      tags: [families]
+      summary: Create a new family tree
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyInput"
+      responses:
+        "201":
+          description: Family created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Family"
+
+  /families/{familyId}:
+    get:
+      operationId: getFamily
+      tags: [families]
+      summary: Get family details
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Family details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Family"
+    patch:
+      operationId: updateFamily
+      tags: [families]
+      summary: Update family info
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Family"
+
+  /families/{familyId}/stats:
+    get:
+      operationId: getFamilyStats
+      tags: [families]
+      summary: Get family statistics (member count, generations, etc.)
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Family stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyStats"
+
+  /families/{familyId}/invite:
+    post:
+      operationId: generateInvite
+      tags: [families]
+      summary: Generate an invitation token (Gatekeeper only)
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteInput"
+      responses:
+        "200":
+          description: Invite token generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteToken"
+
+  /families/{familyId}/pending-members:
+    get:
+      operationId: getPendingMembers
+      tags: [families]
+      summary: List pending approval members
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pending members list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /families/{familyId}/pending-members/{userId}/approve:
+    post:
+      operationId: approveMember
+      tags: [families]
+      summary: Approve a pending member
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Member approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /families/{familyId}/pending-members/{userId}/reject:
+    post:
+      operationId: rejectMember
+      tags: [families]
+      summary: Reject a pending member
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Member rejected
+
+  # ── MEMBERS / TREE NODES ──────────────────────────────────────────────
+  /families/{familyId}/members:
+    get:
+      operationId: listMembers
+      tags: [members]
+      summary: List all members of a family tree
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Members list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+    post:
+      operationId: createMember
+      tags: [members]
+      summary: Add a new member node to the tree
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberInput"
+      responses:
+        "201":
+          description: Member created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
+  /families/{familyId}/members/{memberId}:
+    get:
+      operationId: getMember
+      tags: [members]
+      summary: Get member profile
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Member profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+    patch:
+      operationId: updateMember
+      tags: [members]
+      summary: Update member data (position, info, dates)
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberUpdate"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+    delete:
+      operationId: deleteMember
+      tags: [members]
+      summary: Remove a member node from the tree
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /families/{familyId}/members/{memberId}/role:
+    patch:
+      operationId: updateMemberRole
+      tags: [members]
+      summary: Update a member's role (Gatekeeper only)
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleUpdate"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
+  /families/{familyId}/relationships:
+    get:
+      operationId: listRelationships
+      tags: [members]
+      summary: List all relationships (edges) in the tree
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Relationships list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Relationship"
+    post:
+      operationId: createRelationship
+      tags: [members]
+      summary: Create a relationship between two members
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RelationshipInput"
+      responses:
+        "201":
+          description: Relationship created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Relationship"
+
+  /families/{familyId}/relationships/{relationshipId}:
+    delete:
+      operationId: deleteRelationship
+      tags: [members]
+      summary: Delete a relationship
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: relationshipId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /families/{familyId}/relationship-path:
+    get:
+      operationId: calculateRelationship
+      tags: [members]
+      summary: AI-calculate relationship between two members
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fromMemberId
+          in: query
+          required: true
+          schema:
+            type: string
+            description: Source member ID
+        - name: toMemberId
+          in: query
+          required: true
+          schema:
+            type: string
+            description: Target member ID
+      responses:
+        "200":
+          description: Relationship description
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipPathResult"
+
+  # ── POSTS / FEED ──────────────────────────────────────────────────────
+  /families/{familyId}/posts:
+    get:
+      operationId: getFamilyFeed
+      tags: [posts]
+      summary: Get the family social feed
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Posts feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostPage"
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Create a new post
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /families/{familyId}/posts/{postId}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Get a single post
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+    delete:
+      operationId: deletePost
+      tags: [posts]
+      summary: Delete a post
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /families/{familyId}/posts/{postId}/react:
+    post:
+      operationId: reactToPost
+      tags: [posts]
+      summary: Add/remove a reaction to a post
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReactionInput"
+      responses:
+        "200":
+          description: Reaction toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  # ── COMMENTS ──────────────────────────────────────────────────────────
+  /families/{familyId}/posts/{postId}/comments:
+    get:
+      operationId: listComments
+      tags: [comments]
+      summary: Get comments for a post
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+    post:
+      operationId: createComment
+      tags: [comments]
+      summary: Create a comment (supports nested replies)
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+
+  /families/{familyId}/posts/{postId}/comments/{commentId}:
+    delete:
+      operationId: deleteComment
+      tags: [comments]
+      summary: Delete a comment
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── MEDIA ─────────────────────────────────────────────────────────────
+  /families/{familyId}/media:
+    get:
+      operationId: getMediaGallery
+      tags: [media]
+      summary: Get family media gallery
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [image, video, audio]
+      responses:
+        "200":
+          description: Media items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MediaItem"
+    post:
+      operationId: createMedia
+      tags: [media]
+      summary: Save a Cloudinary-uploaded media record
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaInput"
+      responses:
+        "201":
+          description: Media saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaItem"
+
+  /families/{familyId}/media/{mediaId}:
+    delete:
+      operationId: deleteMedia
+      tags: [media]
+      summary: Delete a media item
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: mediaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /media/sign-upload:
+    post:
+      operationId: getUploadSignature
+      tags: [media]
+      summary: Get a signed Cloudinary upload signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUploadInput"
+      responses:
+        "200":
+          description: Upload signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadSignature"
+
+  # ── NOTIFICATIONS ─────────────────────────────────────────────────────
+  /families/{familyId}/notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: List notifications for current user
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: unreadOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /families/{familyId}/notifications/mark-read:
+    post:
+      operationId: markNotificationsRead
+      tags: [notifications]
+      summary: Mark notifications as read
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkReadInput"
+      responses:
+        "200":
+          description: Marked read
+
+  # ── EVENTS ────────────────────────────────────────────────────────────
+  /families/{familyId}/events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List family events
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyEvent"
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: Create a family event
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventInput"
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyEvent"
+
+  /families/{familyId}/events/{eventId}:
+    get:
+      operationId: getEvent
+      tags: [events]
+      summary: Get event details
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyEvent"
+    patch:
+      operationId: updateEvent
+      tags: [events]
+      summary: Update an event
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventUpdate"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyEvent"
+    delete:
+      operationId: deleteEvent
+      tags: [events]
+      summary: Delete an event
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /families/{familyId}/events/{eventId}/rsvp:
+    post:
+      operationId: rsvpEvent
+      tags: [events]
+      summary: RSVP to an event
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RsvpInput"
+      responses:
+        "200":
+          description: RSVP recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyEvent"
+
+  # ── TIME CAPSULES ─────────────────────────────────────────────────────
+  /families/{familyId}/capsules:
+    get:
+      operationId: listCapsules
+      tags: [posts]
+      summary: List unlocked time-capsule posts
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Unlocked capsules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+
+  # ── MAP PINS ──────────────────────────────────────────────────────────
+  /families/{familyId}/map-pins:
+    get:
+      operationId: listMapPins
+      tags: [members]
+      summary: List family location pins
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Map pins
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MapPin"
+    post:
+      operationId: createMapPin
+      tags: [members]
+      summary: Add a location pin for a member
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MapPinInput"
+      responses:
+        "201":
+          description: Pin created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapPin"
+
+  /families/{familyId}/map-pins/{pinId}:
+    delete:
+      operationId: deleteMapPin
+      tags: [members]
+      summary: Remove a location pin
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pinId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── CHRONICLE PDF ─────────────────────────────────────────────────────
+  /families/{familyId}/chronicle:
+    post:
+      operationId: generateChronicle
+      tags: [families]
+      summary: Generate downloadable PDF chronicle of family tree
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: PDF generation job started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChronicleJob"
+
+  # ── ADMIN COCKPIT ─────────────────────────────────────────────────────
+  /system-cockpit/stats:
+    get:
+      operationId: getSystemStats
+      tags: [admin]
+      summary: Get global system health stats (master admin only)
+      responses:
+        "200":
+          description: System stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStats"
+
+  /system-cockpit/families:
+    get:
+      operationId: listAllFamilies
+      tags: [admin]
+      summary: List all family trees across tenants
+      responses:
+        "200":
+          description: All families
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Family"
+
+  /system-cockpit/audit-logs:
+    get:
+      operationId: getAuditLogs
+      tags: [admin]
+      summary: Get backend security/audit logs
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ── AUTH SCHEMAS ────────────────────────────────────────────────────
+    RegisterInput:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email:       { type: string, format: email }
+        password:    { type: string, minLength: 8 }
+        displayName: { type: string, minLength: 1 }
+        inviteToken: { type: ["string", "null"] }
+        familyId:    { type: ["string", "null"] }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email }
+        password: { type: string }
+
+    InviteVerifyInput:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+
+    InviteVerifyResponse:
+      type: object
+      required: [valid, familyId, familyName]
+      properties:
+        valid:      { type: boolean }
+        familyId:   { type: string }
+        familyName: { type: string }
+        email:      { type: ["string", "null"] }
+
+    AuthResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:  { $ref: "#/components/schemas/User" }
+        token: { type: string }
+
+    User:
+      type: object
+      required: [id, email, displayName, status, role, familyId, createdAt]
+      properties:
+        id:          { type: string }
+        email:       { type: string }
+        displayName: { type: string }
+        avatarUrl:   { type: ["string", "null"] }
+        status:      { type: string, enum: [pending, active, suspended] }
+        role:        { type: string, enum: [user, editor, gatekeeper, master_admin] }
+        familyId:    { type: ["string", "null"] }
+        memberId:    { type: ["string", "null"] }
+        createdAt:   { type: string, format: date-time }
+
+    # ── FAMILY SCHEMAS ──────────────────────────────────────────────────
+    FamilyInput:
+      type: object
+      required: [name]
+      properties:
+        name:        { type: string, minLength: 1 }
+        description: { type: ["string", "null"] }
+        coverUrl:    { type: ["string", "null"] }
+        theme:       { type: string, enum: [heritage, vibrant, cyber], default: heritage }
+
+    FamilyUpdate:
+      type: object
+      properties:
+        name:        { type: string }
+        description: { type: ["string", "null"] }
+        coverUrl:    { type: ["string", "null"] }
+        theme:       { type: string, enum: [heritage, vibrant, cyber] }
+
+    Family:
+      type: object
+      required: [id, name, familyTreeId, gatekeeperId, createdAt]
+      properties:
+        id:           { type: string }
+        name:         { type: string }
+        description:  { type: ["string", "null"] }
+        coverUrl:     { type: ["string", "null"] }
+        familyTreeId: { type: string }
+        gatekeeperId: { type: string }
+        theme:        { type: string, enum: [heritage, vibrant, cyber] }
+        memberCount:  { type: integer }
+        createdAt:    { type: string, format: date-time }
+
+    FamilyStats:
+      type: object
+      required: [totalMembers, livingMembers, generations, totalPosts, totalMedia, birthdaysToday]
+      properties:
+        totalMembers:   { type: integer }
+        livingMembers:  { type: integer }
+        generations:    { type: integer }
+        totalPosts:     { type: integer }
+        totalMedia:     { type: integer }
+        birthdaysToday: { type: array, items: { $ref: "#/components/schemas/Member" } }
+
+    InviteInput:
+      type: object
+      properties:
+        email:      { type: ["string", "null"] }
+        expiresInH: { type: integer, default: 72 }
+
+    InviteToken:
+      type: object
+      required: [token, url, expiresAt]
+      properties:
+        token:     { type: string }
+        url:       { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    # ── MEMBER SCHEMAS ──────────────────────────────────────────────────
+    MemberInput:
+      type: object
+      required: [firstName, lastName]
+      properties:
+        firstName:    { type: string }
+        lastName:     { type: string }
+        gender:       { type: ["string", "null"], enum: [male, female, other, null] }
+        birthDate:    { type: ["string", "null"] }
+        deathDate:    { type: ["string", "null"] }
+        birthPlace:   { type: ["string", "null"] }
+        bio:          { type: ["string", "null"] }
+        avatarUrl:    { type: ["string", "null"] }
+        posX:         { type: ["number", "null"] }
+        posY:         { type: ["number", "null"] }
+        linkedUserId: { type: ["string", "null"] }
+
+    MemberUpdate:
+      type: object
+      properties:
+        firstName:    { type: string }
+        lastName:     { type: string }
+        gender:       { type: ["string", "null"] }
+        birthDate:    { type: ["string", "null"] }
+        deathDate:    { type: ["string", "null"] }
+        birthPlace:   { type: ["string", "null"] }
+        bio:          { type: ["string", "null"] }
+        avatarUrl:    { type: ["string", "null"] }
+        posX:         { type: ["number", "null"] }
+        posY:         { type: ["number", "null"] }
+        locationLat:  { type: ["number", "null"] }
+        locationLng:  { type: ["number", "null"] }
+        locationName: { type: ["string", "null"] }
+
+    Member:
+      type: object
+      required: [id, familyId, firstName, lastName, createdAt]
+      properties:
+        id:           { type: string }
+        familyId:     { type: string }
+        firstName:    { type: string }
+        lastName:     { type: string }
+        gender:       { type: ["string", "null"] }
+        birthDate:    { type: ["string", "null"] }
+        deathDate:    { type: ["string", "null"] }
+        birthPlace:   { type: ["string", "null"] }
+        bio:          { type: ["string", "null"] }
+        avatarUrl:    { type: ["string", "null"] }
+        posX:         { type: ["number", "null"] }
+        posY:         { type: ["number", "null"] }
+        linkedUserId: { type: ["string", "null"] }
+        role:         { type: ["string", "null"] }
+        locationLat:  { type: ["number", "null"] }
+        locationLng:  { type: ["number", "null"] }
+        locationName: { type: ["string", "null"] }
+        createdAt:    { type: string, format: date-time }
+
+    RoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [user, editor, gatekeeper] }
+
+    RelationshipInput:
+      type: object
+      required: [fromMemberId, toMemberId, type]
+      properties:
+        fromMemberId: { type: string }
+        toMemberId:   { type: string }
+        type:         { type: string, enum: [parent, spouse, sibling] }
+
+    Relationship:
+      type: object
+      required: [id, familyId, fromMemberId, toMemberId, type, createdAt]
+      properties:
+        id:           { type: string }
+        familyId:     { type: string }
+        fromMemberId: { type: string }
+        toMemberId:   { type: string }
+        type:         { type: string, enum: [parent, spouse, sibling] }
+        createdAt:    { type: string, format: date-time }
+
+    RelationshipPathResult:
+      type: object
+      required: [description, path]
+      properties:
+        description: { type: string }
+        path:        { type: array, items: { type: string } }
+
+    # ── POST SCHEMAS ────────────────────────────────────────────────────
+    PostInput:
+      type: object
+      required: [content]
+      properties:
+        content:       { type: string, minLength: 1 }
+        mediaUrls:     { type: array, items: { type: string } }
+        taggedMembers: { type: array, items: { type: string } }
+        isCapsule:     { type: boolean, default: false }
+        unlockAt:      { type: ["string", "null"], format: date-time }
+
+    Post:
+      type: object
+      required: [id, familyId, authorId, content, reactions, commentCount, isCapsule, createdAt]
+      properties:
+        id:            { type: string }
+        familyId:      { type: string }
+        authorId:      { type: string }
+        authorName:    { type: string }
+        authorAvatar:  { type: ["string", "null"] }
+        content:       { type: string }
+        mediaUrls:     { type: array, items: { type: string } }
+        taggedMembers: { type: array, items: { type: string } }
+        reactions:     { $ref: "#/components/schemas/Reactions" }
+        commentCount:  { type: integer }
+        isCapsule:     { type: boolean }
+        unlockAt:      { type: ["string", "null"] }
+        isLocked:      { type: boolean }
+        createdAt:     { type: string, format: date-time }
+
+    PostPage:
+      type: object
+      required: [posts, hasMore]
+      properties:
+        posts:      { type: array, items: { $ref: "#/components/schemas/Post" } }
+        nextCursor: { type: ["string", "null"] }
+        hasMore:    { type: boolean }
+
+    Reactions:
+      type: object
+      properties:
+        like:      { type: integer }
+        love:      { type: integer }
+        celebrate: { type: integer }
+
+    ReactionInput:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [like, love, celebrate] }
+
+    # ── COMMENT SCHEMAS ─────────────────────────────────────────────────
+    CommentInput:
+      type: object
+      required: [content]
+      properties:
+        content:  { type: string, minLength: 1 }
+        parentId: { type: ["string", "null"] }
+
+    Comment:
+      type: object
+      required: [id, postId, authorId, content, createdAt]
+      properties:
+        id:          { type: string }
+        postId:      { type: string }
+        authorId:    { type: string }
+        authorName:  { type: string }
+        authorAvatar: { type: ["string", "null"] }
+        content:     { type: string }
+        parentId:    { type: ["string", "null"] }
+        replies:     { type: array, items: { $ref: "#/components/schemas/Comment" } }
+        createdAt:   { type: string, format: date-time }
+
+    # ── MEDIA SCHEMAS ───────────────────────────────────────────────────
+    MediaInput:
+      type: object
+      required: [cloudinaryId, url, type]
+      properties:
+        cloudinaryId:  { type: string }
+        url:           { type: string }
+        thumbnailUrl:  { type: ["string", "null"] }
+        type:          { type: string, enum: [image, video, audio] }
+        title:         { type: ["string", "null"] }
+        description:   { type: ["string", "null"] }
+        taggedMembers: { type: array, items: { type: string } }
+        duration:      { type: ["number", "null"] }
+
+    MediaItem:
+      type: object
+      required: [id, familyId, uploaderId, cloudinaryId, url, type, createdAt]
+      properties:
+        id:            { type: string }
+        familyId:      { type: string }
+        uploaderId:    { type: string }
+        uploaderName:  { type: string }
+        cloudinaryId:  { type: string }
+        url:           { type: string }
+        thumbnailUrl:  { type: ["string", "null"] }
+        type:          { type: string, enum: [image, video, audio] }
+        title:         { type: ["string", "null"] }
+        description:   { type: ["string", "null"] }
+        taggedMembers: { type: array, items: { type: string } }
+        duration:      { type: ["number", "null"] }
+        createdAt:     { type: string, format: date-time }
+
+    SignUploadInput:
+      type: object
+      required: [familyId]
+      properties:
+        familyId: { type: string }
+        folder:   { type: ["string", "null"] }
+
+    UploadSignature:
+      type: object
+      required: [signature, timestamp, cloudName, apiKey, uploadPreset]
+      properties:
+        signature:    { type: string }
+        timestamp:    { type: integer }
+        cloudName:    { type: string }
+        apiKey:       { type: string }
+        uploadPreset: { type: string }
+        folder:       { type: string }
+
+    # ── NOTIFICATION SCHEMAS ────────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, userId, type, message, isRead, createdAt]
+      properties:
+        id:        { type: string }
+        userId:    { type: string }
+        familyId:  { type: string }
+        type:      { type: string, enum: [tag, comment, birthday, reaction, invite_accepted] }
+        message:   { type: string }
+        linkId:    { type: ["string", "null"] }
+        isRead:    { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    MarkReadInput:
+      type: object
+      properties:
+        ids: { type: array, items: { type: string } }
+
+    # ── EVENT SCHEMAS ───────────────────────────────────────────────────
+    EventInput:
+      type: object
+      required: [title, startDate]
+      properties:
+        title:       { type: string, minLength: 1 }
+        description: { type: ["string", "null"] }
+        startDate:   { type: string, format: date-time }
+        endDate:     { type: ["string", "null"], format: date-time }
+        location:    { type: ["string", "null"] }
+        locationLat: { type: ["number", "null"] }
+        locationLng: { type: ["number", "null"] }
+        coverUrl:    { type: ["string", "null"] }
+
+    EventUpdate:
+      type: object
+      properties:
+        title:       { type: string }
+        description: { type: ["string", "null"] }
+        startDate:   { type: string, format: date-time }
+        endDate:     { type: ["string", "null"] }
+        location:    { type: ["string", "null"] }
+        locationLat: { type: ["number", "null"] }
+        locationLng: { type: ["number", "null"] }
+        coverUrl:    { type: ["string", "null"] }
+
+    RsvpInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [going, not_going, maybe] }
+
+    FamilyEvent:
+      type: object
+      required: [id, familyId, creatorId, title, startDate, rsvps, createdAt]
+      properties:
+        id:          { type: string }
+        familyId:    { type: string }
+        creatorId:   { type: string }
+        creatorName: { type: string }
+        title:       { type: string }
+        description: { type: ["string", "null"] }
+        startDate:   { type: string, format: date-time }
+        endDate:     { type: ["string", "null"] }
+        location:    { type: ["string", "null"] }
+        locationLat: { type: ["number", "null"] }
+        locationLng: { type: ["number", "null"] }
+        coverUrl:    { type: ["string", "null"] }
+        rsvps:       { $ref: "#/components/schemas/RsvpCounts" }
+        myRsvp:      { type: ["string", "null"] }
+        createdAt:   { type: string, format: date-time }
+
+    RsvpCounts:
+      type: object
+      properties:
+        going:     { type: integer }
+        not_going: { type: integer }
+        maybe:     { type: integer }
+
+    # ── MAP PIN SCHEMAS ─────────────────────────────────────────────────
+    MapPinInput:
+      type: object
+      required: [memberId, lat, lng, locationName]
+      properties:
+        memberId:     { type: string }
+        lat:          { type: number }
+        lng:          { type: number }
+        locationName: { type: string }
+        description:  { type: ["string", "null"] }
+
+    MapPin:
+      type: object
+      required: [id, familyId, memberId, lat, lng, locationName, createdAt]
+      properties:
+        id:           { type: string }
+        familyId:     { type: string }
+        memberId:     { type: string }
+        memberName:   { type: string }
+        memberAvatar: { type: ["string", "null"] }
+        lat:          { type: number }
+        lng:          { type: number }
+        locationName: { type: string }
+        description:  { type: ["string", "null"] }
+        createdAt:    { type: string, format: date-time }
+
+    # ── ADMIN SCHEMAS ───────────────────────────────────────────────────
+    SystemStats:
+      type: object
+      required: [totalFamilies, totalUsers, totalPosts, totalMedia, cloudinaryUsageMB]
+      properties:
+        totalFamilies:     { type: integer }
+        totalUsers:        { type: integer }
+        activeUsers:       { type: integer }
+        pendingUsers:      { type: integer }
+        totalPosts:        { type: integer }
+        totalMedia:        { type: integer }
+        cloudinaryUsageMB: { type: number }
+        dbReadsToday:      { type: integer }
+        dbWritesToday:     { type: integer }
+
+    AuditLog:
+      type: object
+      required: [id, action, userId, timestamp]
+      properties:
+        id:        { type: string }
+        action:    { type: string }
+        userId:    { type: ["string", "null"] }
+        familyId:  { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        details:   { type: ["string", "null"] }
+        timestamp: { type: string, format: date-time }
+
+    ChronicleJob:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:  { type: string }
+        status: { type: string, enum: [processing, ready, failed] }
+        url:    { type: ["string", "null"] }
