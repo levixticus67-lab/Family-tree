@@ -2,7 +2,7 @@ name: Deploy Frontend to Firebase Hosting
 on:
   push:
     branches:
-      - main # Change this to master if your main branch is named master
+      - main
 
 jobs:
   build_and_deploy:
@@ -29,7 +29,7 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           PORT: 3000
-          BASE_PATH: / # Satisfies the missing BASE_PATH check for the build
+          BASE_PATH: /
         run: pnpm --filter @workspace/family-tree run build
 
       - name: Deploy to Firebase Hosting
@@ -39,3 +39,4 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           projectId: family-tree-281ca
           entryPoint: ./artifacts/family-tree
+          channelId: live
