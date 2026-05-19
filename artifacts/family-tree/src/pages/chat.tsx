@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useListMembers, getListMembersQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { rtdb } from "@/lib/firebase";
-import { ref, push, onValue, off, serverTimestamp, set, remove } from "firebase/database";
+import { ref, push, onValue, off, serverTimestamp, set, remove, onDisconnect } from "firebase/database";
 import { useGetUploadSignature } from "@workspace/api-client-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
-import { Image as ImageIcon, Send, Search, Users, MessageSquare } from "lucide-react";
+import { Image as ImageIcon, Send, Users, MessageSquare, Mic } from "lucide-react";
 import { format } from "date-fns";
 
 function ChatMessage({ msg, isOwn }: { msg: any; isOwn: boolean }) {
@@ -29,7 +28,11 @@ function ChatMessage({ msg, isOwn }: { msg: any; isOwn: boolean }) {
           {!isOwn && <span className="text-xs text-muted-foreground ml-1 mb-1">{msg.senderName}</span>}
           <div className={`px-4 py-2 rounded-2xl ${isOwn ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm'}`}>
             {msg.mediaUrl && (
-              <img src={msg.mediaUrl} alt="attachment" className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity" />
+              msg.mediaType === "audio" ? (
+                <audio src={msg.mediaUrl} controls className="max-w-[220px] h-8 mb-1" />
+              ) : (
+                <img src={msg.mediaUrl} alt="attachment" className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity" />
+              )
             )}
             {msg.text && <p className="whitespace-pre-wrap break-words text-sm">{msg.text}</p>}
           </div>
@@ -48,6 +51,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [typing, setTyping] = useState<Record<string, boolean>>({});
+  const [presence, setPresence] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -60,6 +64,24 @@ export default function Chat() {
   const getChatId = (otherUserId: string) => {
     return [user?.id, otherUserId].sort().join("_");
   };
+
+  useEffect(() => {
+    if (!user || !familyId || !rtdb) return;
+
+    const myPresenceRef = ref(rtdb, `/presence/${familyId}/${user.id}`);
+    set(myPresenceRef, true);
+    onDisconnect(myPresenceRef).remove();
+
+    const familyPresenceRef = ref(rtdb, `/presence/${familyId}`);
+    onValue(familyPresenceRef, (snap) => {
+      setPresence(snap.val() || {});
+    });
+
+    return () => {
+      off(familyPresenceRef);
+      remove(myPresenceRef);
+    };
+  }, [user?.id, familyId]);
 
   useEffect(() => {
     if (!activeChatId || !rtdb) return;
@@ -99,7 +121,7 @@ export default function Chat() {
     }
   };
 
-  const sendMessage = async (mediaUrl?: string) => {
+  const sendMessage = async (mediaUrl?: string, mediaType?: string) => {
     if ((!text.trim() && !mediaUrl) || !activeChatId || !user || !rtdb) return;
 
     const msg = {
@@ -108,6 +130,7 @@ export default function Chat() {
       senderAvatar: user.avatarUrl || null,
       text: text.trim(),
       mediaUrl: mediaUrl || null,
+      mediaType: mediaType || null,
       timestamp: serverTimestamp()
     };
 
@@ -130,7 +153,8 @@ export default function Chat() {
     try {
       const sig = await getSignature.mutateAsync({ data: { familyId } });
       const result = await uploadToCloudinary(file, sig);
-      await sendMessage(result.secure_url);
+      const mediaType = file.type.startsWith("audio/") ? "audio" : "image";
+      await sendMessage(result.secure_url, mediaType);
     } catch (e) {
       console.error("Upload failed", e);
     } finally {
@@ -141,12 +165,11 @@ export default function Chat() {
 
   const otherTypingNames = Object.keys(typing)
     .filter(id => id !== user?.id && typing[id])
-    .map(id => members.find(m => m.id === id)?.firstName)
+    .map(id => (members as any[]).find(m => m.id === id)?.firstName)
     .filter(Boolean);
 
   return (
     <div className="h-full flex bg-background/50">
-      {/* Sidebar */}
       <div className="w-72 border-r border-border/50 flex flex-col bg-card/30">
         <div className="p-4 border-b border-border/50">
           <h2 className="font-semibold text-lg flex items-center gap-2">
@@ -175,25 +198,34 @@ export default function Chat() {
           <div>
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">Direct Messages</div>
             <div className="space-y-1">
-              {members.filter(m => m.id !== user?.id).map(m => {
+              {(members as any[]).filter(m => m.id !== user?.id).map(m => {
                 const chatId = getChatId(m.id);
                 const isActive = activeChatId === chatId;
+                const isOnline = !!presence[m.id];
                 return (
                   <button
                     key={m.id}
                     className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors ${isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted/50 text-foreground'}`}
                     onClick={() => setActiveChatId(chatId)}
                   >
-                    <Avatar className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
-                      {m.avatarUrl ? (
-                        <img src={m.avatarUrl} alt={m.firstName} className="w-full h-full object-cover rounded-full" />
-                      ) : (
-                        `${m.firstName[0]}${m.lastName[0]}`
-                      )}
-                    </Avatar>
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
+                        {m.avatarUrl ? (
+                          <img src={m.avatarUrl} alt={m.firstName} className="w-full h-full object-cover rounded-full" />
+                        ) : (
+                          `${m.firstName[0]}${m.lastName[0]}`
+                        )}
+                      </Avatar>
+                      <span
+                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card transition-colors ${isOnline ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
+                        title={isOnline ? "Online" : "Offline"}
+                      />
+                    </div>
                     <div className="flex-1 text-left">
                       <div className="text-sm">{m.firstName} {m.lastName}</div>
-                      <div className="text-xs text-muted-foreground truncate">{m.role}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {isOnline ? <span className="text-green-600 font-medium">Online</span> : m.role}
+                      </div>
                     </div>
                   </button>
                 );
@@ -203,14 +235,27 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-background/50">
         {activeChatId ? (
           <>
             <div className="h-16 border-b border-border/50 flex items-center px-6 bg-card/30 backdrop-blur-sm sticky top-0 z-10">
               <h3 className="font-semibold text-lg">
-                {activeChatId === familyId ? "Family Square" : members.find(m => getChatId(m.id) === activeChatId)?.firstName + " " + members.find(m => getChatId(m.id) === activeChatId)?.lastName}
+                {activeChatId === familyId
+                  ? "Family Square"
+                  : (() => {
+                      const m = (members as any[]).find(m => getChatId(m.id) === activeChatId);
+                      return m ? `${m.firstName} ${m.lastName}` : "Chat";
+                    })()}
               </h3>
+              {activeChatId !== familyId && (() => {
+                const m = (members as any[]).find(m => getChatId(m.id) === activeChatId);
+                return m && presence[m.id] ? (
+                  <span className="ml-2 flex items-center gap-1.5 text-xs text-green-600 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                    Online
+                  </span>
+                ) : null;
+              })()}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6" ref={scrollRef}>
@@ -236,9 +281,16 @@ export default function Chat() {
 
             <div className="p-4 bg-card/30 border-t border-border/50">
               <div className="flex items-end gap-2 max-w-4xl mx-auto">
-                <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
-                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                  <ImageIcon className="w-5 h-5" />
+                <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={handleFile} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  title="Attach image, video, or audio"
+                >
+                  {uploading ? <Mic className="w-5 h-5 animate-pulse" /> : <ImageIcon className="w-5 h-5" />}
                 </Button>
                 <Textarea
                   value={text}
