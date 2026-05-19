@@ -14,7 +14,7 @@ jobs:
       - name: Install Pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 9 # Updated to version 9 to support pnpm catalogs
+          version: 9
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -23,11 +23,12 @@ jobs:
           cache: 'pnpm'
 
       - name: Install Dependencies
-        run: pnpm install --no-frozen-lockfile # Prevents lockfile resolution issues
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build Frontend
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          PORT: 3000
         run: pnpm --filter @workspace/family-tree run build
 
       - name: Deploy to Firebase Hosting
