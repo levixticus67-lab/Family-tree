@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar } from "@/components/ui/avatar";
 import { Shield, Check, X, Users, Image as ImageIcon, MessageSquare, Heart, Link as LinkIcon, Download } from "lucide-react";
-import QRCode from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 
 export default function Gatekeeper() {
   const { familyId } = useAuth();
@@ -258,13 +258,12 @@ export default function Gatekeeper() {
                     <Label className="text-xs text-muted-foreground uppercase">QR Code</Label>
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-3 bg-white rounded-xl border border-border shadow-sm">
-                        <QRCode
+                        <QRCodeCanvas
                           id="invite-qr-canvas"
                           value={generatedInvite}
                           size={160}
                           level="M"
                           includeMargin={false}
-                          renderAs="canvas"
                         />
                       </div>
                       <Button
