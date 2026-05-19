@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useListCapsules, getListCapsulesQueryKey } from "@workspace/api-client-react";
-import { Lock, Unlock, Clock } from "lucide-react";
+import { useListCapsules, getListCapsulesQueryKey, useCreatePost } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Lock, Unlock, Clock, Plus } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 
 function Countdown({ unlockAt }: { unlockAt: string }) {
@@ -36,22 +43,107 @@ function Countdown({ unlockAt }: { unlockAt: string }) {
 
 export default function Capsules() {
   const { familyId } = useAuth();
-  
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [content, setContent] = useState("");
+  const [unlockDate, setUnlockDate] = useState("");
+
   const { data: capsulesData, isLoading } = useListCapsules(familyId ?? "", {
     query: { enabled: !!familyId, queryKey: getListCapsulesQueryKey(familyId ?? "") }
   });
+
+  const createPost = useCreatePost();
   
   const capsules = (capsulesData as any)?.items || capsulesData || [];
   
   const now = new Date().toISOString();
   const locked = capsules.filter((c: any) => c.unlockAt > now).sort((a: any, b: any) => a.unlockAt.localeCompare(b.unlockAt));
   const unlocked = capsules.filter((c: any) => c.unlockAt <= now).sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
+
+  const minDate = new Date();
+  minDate.setDate(minDate.getDate() + 1);
+  const minDateStr = minDate.toISOString().slice(0, 16);
+
+  const handleCreate = () => {
+    if (!content.trim() || !unlockDate) return;
+    createPost.mutate(
+      {
+        familyId: familyId!,
+        data: {
+          content: content.trim(),
+          isCapsule: true,
+          unlockAt: new Date(unlockDate).toISOString(),
+          mediaUrls: [],
+          taggedMembers: [],
+        } as any,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Time capsule sealed", description: "It will unlock on the chosen date." });
+          qc.invalidateQueries({ queryKey: getListCapsulesQueryKey(familyId ?? "") });
+          setContent("");
+          setUnlockDate("");
+          setCreateOpen(false);
+        },
+        onError: () => toast({ title: "Failed to create capsule", variant: "destructive" }),
+      }
+    );
+  };
   
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-12">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Time Capsules</h1>
-        <p className="text-muted-foreground">Messages and memories preserved for the future.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Time Capsules</h1>
+          <p className="text-muted-foreground">Messages and memories preserved for the future.</p>
+        </div>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              New Capsule
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-amber-500" />
+                Seal a Time Capsule
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>Your message</Label>
+                <Textarea
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  placeholder="Write a message to your future family…"
+                  className="min-h-[120px] resize-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Unlock date &amp; time</Label>
+                <Input
+                  type="datetime-local"
+                  value={unlockDate}
+                  min={minDateStr}
+                  onChange={e => setUnlockDate(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Must be at least 24 hours from now.</p>
+              </div>
+              <Button
+                onClick={handleCreate}
+                disabled={!content.trim() || !unlockDate || createPost.isPending}
+                className="w-full gap-2"
+              >
+                <Lock className="w-4 h-4" />
+                {createPost.isPending ? "Sealing…" : "Seal Capsule"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
       
       {isLoading ? (
@@ -61,8 +153,8 @@ export default function Capsules() {
       ) : capsules.length === 0 ? (
         <div className="text-center py-24 bg-card border border-dashed rounded-xl">
           <Lock className="w-12 h-12 mx-auto text-muted-foreground opacity-40 mb-4" />
-          <h2 className="text-lg font-medium">No Time Capsules</h2>
-          <p className="text-muted-foreground">Create a post and mark it as a Time Capsule to preserve it.</p>
+          <h2 className="text-lg font-medium">No Time Capsules Yet</h2>
+          <p className="text-muted-foreground">Seal a message for your future family using the New Capsule button above.</p>
         </div>
       ) : (
         <>
