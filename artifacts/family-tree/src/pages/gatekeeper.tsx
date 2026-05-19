@@ -86,8 +86,23 @@ export default function Gatekeeper() {
   };
 
   const handleGenerateChronicle = () => {
+    toast({ title: "Generating chronicle…", description: "Your family story is being written by AI. Please wait." });
     genChronicle.mutate({ familyId: familyId! }, {
-      onSuccess: () => toast({ title: "Chronicle generation started", description: "You will be notified when the PDF is ready." })
+      onSuccess: (data: any) => {
+        if (data?.html) {
+          const win = window.open("", "_blank");
+          if (win) {
+            win.document.write(data.html);
+            win.document.close();
+            toast({ title: "Chronicle ready!", description: "Your family chronicle opened in a new tab." });
+          } else {
+            toast({ title: "Chronicle ready!", description: "Allow pop-ups to view the chronicle.", variant: "destructive" });
+          }
+        } else {
+          toast({ title: "Chronicle started", description: "You will be notified when it is ready." });
+        }
+      },
+      onError: () => toast({ title: "Chronicle failed", description: "Could not generate the chronicle.", variant: "destructive" })
     });
   };
 
@@ -98,8 +113,9 @@ export default function Gatekeeper() {
           <h1 className="text-3xl font-bold font-serif text-foreground">Gatekeeper Dashboard</h1>
           <p className="text-muted-foreground mt-1">Manage family access, roles, and settings.</p>
         </div>
-        <Button onClick={handleGenerateChronicle} variant="outline" className="gap-2">
-          <Download className="w-4 h-4" /> PDF Chronicle
+        <Button onClick={handleGenerateChronicle} variant="outline" className="gap-2" disabled={genChronicle.isPending}>
+          <Download className={`w-4 h-4 ${genChronicle.isPending ? "animate-bounce" : ""}`} />
+          {genChronicle.isPending ? "Writing chronicle…" : "AI Chronicle"}
         </Button>
       </div>
 

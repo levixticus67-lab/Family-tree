@@ -18,9 +18,11 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const registerMutation = useRegisterUser();
 
+  const urlToken = new URLSearchParams(window.location.search).get("token") ?? "";
+
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: "", password: "", displayName: "", inviteToken: "" },
+    defaultValues: { email: "", password: "", displayName: "", inviteToken: urlToken },
   });
 
   const onSubmit = (values: z.infer<typeof registerSchema>) => {

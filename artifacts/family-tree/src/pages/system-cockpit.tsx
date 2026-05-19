@@ -1,15 +1,23 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { useGetSystemStats, getGetSystemStatsQueryKey, useListAllFamilies, getListAllFamiliesQueryKey, useGetAuditLogs, getGetAuditLogsQueryKey } from "@workspace/api-client-react";
+import { useGetSystemStats, getGetSystemStatsQueryKey, useListAllFamilies, getListAllFamiliesQueryKey, useGetAuditLogs, getGetAuditLogsQueryKey, useCreateFamily } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Activity, Users, Home, Database, Search } from "lucide-react";
+import { ArrowLeft, Activity, Users, Home, Database, Search, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow, format } from "date-fns";
 
 export default function SystemCockpit() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [logFilter, setLogFilter] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newFamilyName, setNewFamilyName] = useState("");
+  const [newFamilyDesc, setNewFamilyDesc] = useState("");
 
   const { data: stats } = useGetSystemStats({
     query: { queryKey: getGetSystemStatsQueryKey() }
@@ -23,8 +31,9 @@ export default function SystemCockpit() {
     query: { queryKey: getGetAuditLogsQueryKey({ limit: 100 }) }
   });
 
+  const createFamily = useCreateFamily();
+
   useEffect(() => {
-    // Force dark cyber theme
     document.documentElement.setAttribute("data-theme", "cyber");
     document.documentElement.classList.add("dark");
     
@@ -40,6 +49,21 @@ export default function SystemCockpit() {
       document.documentElement.classList.remove("dark");
     };
   }, [qc]);
+
+  const handleCreateFamily = () => {
+    if (!newFamilyName.trim()) return;
+    createFamily.mutate({ data: { name: newFamilyName.trim(), description: newFamilyDesc.trim() || undefined } }, {
+      onSuccess: (f: any) => {
+        toast({ title: `Family "${f.name}" created`, description: `ID: ${f.id}` });
+        qc.invalidateQueries({ queryKey: getListAllFamiliesQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetSystemStatsQueryKey() });
+        setNewFamilyName("");
+        setNewFamilyDesc("");
+        setCreateOpen(false);
+      },
+      onError: () => toast({ title: "Failed to create family", variant: "destructive" })
+    });
+  };
 
   const filteredLogs = (logs as any[]).filter((l) => 
     l.action.toLowerCase().includes(logFilter.toLowerCase()) || 
@@ -65,8 +89,49 @@ export default function SystemCockpit() {
               <p className="text-xs text-slate-500 tracking-wider">Ghost Admin Level Access • Live</p>
             </div>
           </div>
-          <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded text-xs uppercase tracking-widest font-bold">
-            v1.0.0-stable
+          <div className="flex items-center gap-3">
+            <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded text-xs uppercase tracking-widest font-bold">
+              v1.0.0-stable
+            </div>
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <button className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded text-xs uppercase tracking-widest font-bold hover:bg-emerald-500/20 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> New Family
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-slate-900 border border-slate-700 text-slate-100 font-mono">
+                <DialogHeader>
+                  <DialogTitle className="uppercase tracking-widest text-sm text-emerald-400">Create New Family</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-400 uppercase tracking-wider">Family Name *</Label>
+                    <Input
+                      value={newFamilyName}
+                      onChange={e => setNewFamilyName(e.target.value)}
+                      placeholder="e.g. The Johnson Family"
+                      className="bg-slate-950 border-slate-700 text-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-400 uppercase tracking-wider">Description</Label>
+                    <Input
+                      value={newFamilyDesc}
+                      onChange={e => setNewFamilyDesc(e.target.value)}
+                      placeholder="Optional short description"
+                      className="bg-slate-950 border-slate-700 text-slate-100"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleCreateFamily}
+                    disabled={!newFamilyName.trim() || createFamily.isPending}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white uppercase tracking-widest text-xs"
+                  >
+                    {createFamily.isPending ? "Creating…" : "Create Family"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -145,7 +210,7 @@ export default function SystemCockpit() {
                 <TableBody>
                   {filteredLogs.map((l: any) => (
                     <TableRow key={l.id} className="border-slate-800 hover:bg-slate-800/50">
-                      <TableCell className="text-xs text-slate-500 whitespace-nowrap">{format(new Date(l.createdAt), 'HH:mm:ss.SSS')}</TableCell>
+                      <TableCell className="text-xs text-slate-500 whitespace-nowrap">{format(new Date(l.timestamp ?? l.createdAt), 'HH:mm:ss.SSS')}</TableCell>
                       <TableCell className="font-mono text-xs text-emerald-400">{l.action}</TableCell>
                       <TableCell className="font-mono text-[10px] text-slate-500 break-all">
                         <span className="text-slate-400 mr-2">[{l.userId?.substring(0,6)}]</span>

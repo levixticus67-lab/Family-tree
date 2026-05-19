@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getFirestore, FieldValue } from "../lib/firebase";
 import { requireAuth, requireActive, requireGatekeeper, requireFamilyAccess } from "../middlewares/auth";
 import { logAudit } from "../lib/audit";
+import { getOpenAI } from "../lib/openai";
 import type { Request, Response } from "express";
 
 const router = Router();
@@ -222,20 +223,121 @@ router.post("/families/:familyId/pending-members/:userId/reject", requireAuth, r
   res.json({ success: true });
 });
 
-// POST /api/families/:familyId/chronicle  (PDF chronicle job)
+// POST /api/families/:familyId/chronicle  — AI-generated family chronicle
 router.post("/families/:familyId/chronicle", requireAuth, requireActive, requireFamilyAccess, requireGatekeeper, async (req: Request, res: Response): Promise<void> => {
   const familyId = req.params.familyId as string;
   const jobId = uuidv4();
-  // In production this would trigger an async job; here we just return a job ID
   const db = getFirestore();
+
   await db.collection("chronicle_jobs").doc(jobId).set({
     familyId,
     status: "processing",
-    url: null,
     createdAt: FieldValue.serverTimestamp(),
     requestedBy: req.user!.id,
   });
-  res.json({ jobId, status: "processing", url: null });
+
+  const [familyDoc, membersSnap, postsSnap, eventsSnap] = await Promise.all([
+    db.collection("families").doc(familyId).get(),
+    db.collection(`families/${familyId}/members`).get(),
+    db.collection(`families/${familyId}/posts`).orderBy("createdAt", "desc").limit(30).get(),
+    db.collection(`families/${familyId}/events`).orderBy("startDate", "asc").limit(20).get(),
+  ]);
+
+  const family = familyDoc.data();
+  const members = membersSnap.docs.map(d => d.data());
+  const posts = postsSnap.docs.map(d => d.data());
+  const events = eventsSnap.docs.map(d => d.data());
+
+  const memberList = members.map((m: any) =>
+    `- ${m.firstName ?? ""} ${m.lastName ?? ""}${m.birthDate ? ` (born ${m.birthDate})` : ""}${m.isDeceased ? " †" : ""}${m.bio ? `: ${m.bio.slice(0, 120)}` : ""}`
+  ).join("\n") || "No members added yet.";
+
+  const eventList = events.slice(0, 10).map((e: any) =>
+    `- ${e.title}${e.startDate ? ` (${e.startDate})` : ""}${e.description ? `: ${e.description.slice(0, 100)}` : ""}`
+  ).join("\n") || "No events recorded yet.";
+
+  const postExcerpts = posts.slice(0, 10).map((p: any) =>
+    `- "${(p.content ?? "").slice(0, 180)}"`
+  ).join("\n") || "No memories shared yet.";
+
+  const familyName = family?.name ?? "Our Family";
+
+  let content = `<h1>${familyName}</h1><p>A family chronicle.</p>`;
+  try {
+    const openai = getOpenAI();
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "You are a gifted family historian. Write warm, eloquent narrative chronicles in clean HTML using only h1, h2, p, ul, li tags. Do not use markdown."
+        },
+        {
+          role: "user",
+          content: `Write a beautiful family chronicle for the "${familyName}" family using this data:
+
+MEMBERS:
+${memberList}
+
+EVENTS & MILESTONES:
+${eventList}
+
+RECENT MEMORIES:
+${postExcerpts}
+
+Structure:
+1. <h1> with the family name and a subtitle
+2. <h2>Our People</h2> — warm vignettes for each member
+3. <h2>Milestones & Gatherings</h2> — narrative about the events
+4. <h2>Voices & Memories</h2> — weave in highlights from shared posts
+5. <h2>A Closing Reflection</h2> — a heartfelt paragraph about what this family means
+
+Write 600–900 words. Be specific, warm, and personal.`
+        }
+      ],
+      max_tokens: 1400,
+    });
+    content = completion.choices[0]?.message?.content?.trim() ?? content;
+  } catch (err) {
+    req.log.warn({ err }, "OpenAI chronicle generation failed, using fallback");
+  }
+
+  const htmlDoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${familyName} — Family Chronicle</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Georgia,'Times New Roman',serif;max-width:820px;margin:0 auto;padding:3rem 2rem;line-height:1.85;color:#2c2319;background:#fdfaf5}
+    h1{font-size:2.6rem;color:#4a3728;border-bottom:3px solid #c8a87a;padding-bottom:.6rem;margin-bottom:.4rem}
+    h1+p{color:#7a6452;font-size:1.05rem;margin-top:0;margin-bottom:2rem}
+    h2{font-size:1.4rem;color:#6b4f35;margin-top:2.5rem;margin-bottom:.8rem;font-variant:small-caps;letter-spacing:.04em}
+    p{margin-bottom:1.1rem}
+    ul{padding-left:1.6rem}
+    li{margin-bottom:.5rem}
+    hr{border:none;border-top:1px solid #d9c9b0;margin:3rem 0}
+    footer{text-align:center;color:#b0a090;font-size:.82rem}
+    @media print{body{background:#fff;padding:1.5rem}}
+    @media(max-width:600px){body{padding:1.5rem 1rem}h1{font-size:1.8rem}}
+  </style>
+</head>
+<body>
+${content}
+<hr>
+<footer>Generated by Sanctuary &nbsp;·&nbsp; ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</footer>
+</body>
+</html>`;
+
+  await db.collection("chronicle_jobs").doc(jobId).update({
+    status: "completed",
+    completedAt: FieldValue.serverTimestamp(),
+  });
+
+  await logAudit({ action: "family.chronicle", userId: req.user!.id, familyId, details: jobId });
+
+  res.json({ jobId, status: "completed", html: htmlDoc });
 });
 
 export default router;
