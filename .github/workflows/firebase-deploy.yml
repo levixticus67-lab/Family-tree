@@ -29,6 +29,7 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           PORT: 3000
+          BASE_PATH: / # Satisfies the missing BASE_PATH check for the build
         run: pnpm --filter @workspace/family-tree run build
 
       - name: Deploy to Firebase Hosting
