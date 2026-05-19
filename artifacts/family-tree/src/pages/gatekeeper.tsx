@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar } from "@/components/ui/avatar";
 import { Shield, Check, X, Users, Image as ImageIcon, MessageSquare, Heart, Link as LinkIcon, Download } from "lucide-react";
+import QRCode from "qrcode.react";
 
 export default function Gatekeeper() {
   const { familyId } = useAuth();
@@ -255,10 +256,33 @@ export default function Gatekeeper() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground uppercase">QR Code</Label>
-                    <div className="w-32 h-32 bg-white border border-border rounded flex items-center justify-center text-center p-2 text-xs text-muted-foreground mx-auto">
-                      [QR Code Placeholder]
-                      <br/>
-                      {generatedInvite.substring(0, 15)}...
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-3 bg-white rounded-xl border border-border shadow-sm">
+                        <QRCode
+                          id="invite-qr-canvas"
+                          value={generatedInvite}
+                          size={160}
+                          level="M"
+                          includeMargin={false}
+                          renderAs="canvas"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 text-xs"
+                        onClick={() => {
+                          const canvas = document.getElementById("invite-qr-canvas") as HTMLCanvasElement;
+                          if (!canvas) return;
+                          const link = document.createElement("a");
+                          link.download = "sanctuary-invite-qr.png";
+                          link.href = canvas.toDataURL("image/png");
+                          link.click();
+                        }}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download QR
+                      </Button>
                     </div>
                   </div>
                 </div>
