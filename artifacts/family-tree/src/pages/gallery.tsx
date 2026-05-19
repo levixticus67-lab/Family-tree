@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useGetMediaGallery,
@@ -14,9 +14,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { uploadToCloudinary } from "@/lib/cloudinary";
-import { Image as ImageIcon, Video, Music, Upload, Trash2, X, ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
+import { Image as ImageIcon, Video, Music, Upload, Trash2, X, ChevronLeft, ChevronRight, Play, Pause, Mic, Square } from "lucide-react";
 import { format } from "date-fns";
 
 function MediaUploader({ familyId, onSuccess }: { familyId: string; onSuccess: () => void }) {
@@ -29,9 +28,8 @@ function MediaUploader({ familyId, onSuccess }: { familyId: string; onSuccess: (
   const createMedia = useCreateMedia();
   const { toast } = useToast();
   
-  // Minimal tagging
-  const [taggedMembers, setTaggedMembers] = useState<string[]>([]);
-  const { data: members } = useListMembers(familyId ?? "", {
+  const [taggedMembers] = useState<string[]>([]);
+  const { data: _members } = useListMembers(familyId ?? "", {
     query: { enabled: !!familyId, queryKey: getListMembersQueryKey(familyId ?? "") }
   });
 
@@ -63,7 +61,7 @@ function MediaUploader({ familyId, onSuccess }: { familyId: string; onSuccess: (
       }
       toast({ title: "Upload successful" });
       onSuccess();
-    } catch (err) {
+    } catch {
       toast({ title: "Upload failed", variant: "destructive" });
     } finally {
       setUploading(false);
@@ -72,30 +70,149 @@ function MediaUploader({ familyId, onSuccess }: { familyId: string; onSuccess: (
   };
 
   return (
-    <div className="mb-8">
-      <div 
-        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive ? 'border-primary bg-primary/5' : 'border-border bg-card/50'}`}
-        onDragOver={e => { e.preventDefault(); setDragActive(true); }}
-        onDragLeave={e => { e.preventDefault(); setDragActive(false); }}
-        onDrop={e => { e.preventDefault(); setDragActive(false); handleUpload(e.dataTransfer.files); }}
-      >
-        <Upload className="w-8 h-8 mx-auto mb-4 text-muted-foreground" />
-        <h3 className="font-medium mb-1">Drag and drop media here</h3>
-        <p className="text-sm text-muted-foreground mb-4">Or click to browse files</p>
-        
-        <input 
-          type="file" 
-          multiple 
-          accept="image/*,video/*,audio/*" 
-          className="hidden" 
-          ref={fileInputRef}
-          onChange={e => e.target.files && handleUpload(e.target.files)}
-        />
-        
-        <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-          {uploading ? `Uploading... ${progress}%` : "Select Files"}
-        </Button>
+    <div
+      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive ? 'border-primary bg-primary/5' : 'border-border bg-card/50'}`}
+      onDragOver={e => { e.preventDefault(); setDragActive(true); }}
+      onDragLeave={e => { e.preventDefault(); setDragActive(false); }}
+      onDrop={e => { e.preventDefault(); setDragActive(false); handleUpload(e.dataTransfer.files); }}
+    >
+      <Upload className="w-8 h-8 mx-auto mb-4 text-muted-foreground" />
+      <h3 className="font-medium mb-1">Drag and drop media here</h3>
+      <p className="text-sm text-muted-foreground mb-4">Supports photos, videos, and audio files</p>
+      
+      <input
+        type="file"
+        multiple
+        accept="image/*,video/*,audio/*"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={e => e.target.files && handleUpload(e.target.files)}
+      />
+      
+      <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+        {uploading ? `Uploading... ${progress}%` : "Select Files"}
+      </Button>
+    </div>
+  );
+}
+
+function VoiceRecorder({ familyId, onSuccess }: { familyId: string; onSuccess: () => void }) {
+  const [recording, setRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getSignature = useGetUploadSignature();
+  const createMedia = useCreateMedia();
+  const { toast } = useToast();
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+
+      recorder.start();
+      setRecording(true);
+      setSeconds(0);
+      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+    } catch {
+      toast({ title: "Microphone access denied", description: "Allow microphone access to record voice notes.", variant: "destructive" });
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  const uploadRecording = async () => {
+    if (!audioBlob) return;
+    setUploading(true);
+    try {
+      const file = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" });
+      const sig = await getSignature.mutateAsync({ data: { familyId } });
+      const result = await uploadToCloudinary(file, sig);
+      await createMedia.mutateAsync({
+        familyId,
+        data: { cloudinaryId: result.public_id, url: result.secure_url, type: "audio" as any, taggedMembers: [] }
+      });
+      toast({ title: "Voice note saved to gallery" });
+      discardRecording();
+      onSuccess();
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const discardRecording = useCallback(() => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setSeconds(0);
+  }, [audioUrl]);
+
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  return (
+    <div className="p-4 bg-card/80 border border-border rounded-xl">
+      <div className="flex items-center gap-2 mb-3">
+        <Mic className="w-4 h-4 text-primary" />
+        <span className="text-sm font-semibold">Record a Voice Note</span>
+        <span className="text-xs text-muted-foreground">— capture oral family stories directly in the browser</span>
       </div>
+
+      {!audioBlob ? (
+        <div className="flex items-center gap-3">
+          <Button
+            variant={recording ? "destructive" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={recording ? stopRecording : startRecording}
+          >
+            {recording ? (
+              <><Square className="w-3.5 h-3.5 fill-current" /> Stop Recording</>
+            ) : (
+              <><Mic className="w-3.5 h-3.5" /> Start Recording</>
+            )}
+          </Button>
+          {recording && (
+            <span className="flex items-center gap-2 text-sm text-destructive font-mono font-medium">
+              <span className="w-2 h-2 rounded-full bg-destructive animate-ping inline-block" />
+              {formatTime(seconds)}
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 flex-wrap">
+          <audio src={audioUrl!} controls className="h-9 flex-1 min-w-0" />
+          <Button size="sm" onClick={uploadRecording} disabled={uploading} className="gap-1.5 shrink-0">
+            {uploading ? "Saving…" : "Save to Gallery"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={discardRecording} disabled={uploading} className="shrink-0">
+            Discard
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -120,15 +237,14 @@ function AudioPlayer({ url }: { url: string }) {
         {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
       </Button>
       <div className="flex-1 flex items-center gap-1 h-8">
-        {/* Animated bars */}
         {[...Array(20)].map((_, i) => (
-          <div 
-            key={i} 
+          <div
+            key={i}
             className={`w-1.5 bg-primary/60 rounded-full transition-all duration-100 ${playing ? 'animate-pulse' : ''}`}
-            style={{ 
+            style={{
               height: playing ? `${Math.random() * 100}%` : '20%',
               animationDelay: `${i * 0.1}s`
-            }} 
+            }}
           />
         ))}
       </div>
@@ -151,31 +267,30 @@ export default function Gallery() {
   );
   
   const deleteMedia = useDeleteMedia();
-  
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const items = (mediaItems as any)?.items || mediaItems || [];
+
+  const refreshGallery = () => qc.invalidateQueries({ queryKey: getGetMediaGalleryQueryKey(familyId ?? "", mediaParams) });
   
   const handleDelete = (id: string) => {
     if (!confirm("Delete this media?")) return;
     deleteMedia.mutate({ familyId: familyId ?? "", mediaId: id }, {
       onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetMediaGalleryQueryKey(familyId ?? "", mediaParams) });
+        refreshGallery();
         toast({ title: "Media deleted" });
       }
     });
   };
   
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Family Gallery</h1>
-      
-      <MediaUploader 
-        familyId={familyId ?? ""} 
-        onSuccess={() => qc.invalidateQueries({ queryKey: getGetMediaGalleryQueryKey(familyId ?? "", mediaParams) })} 
-      />
-      
-      <Tabs value={filter} onValueChange={setFilter} className="mb-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <h1 className="text-3xl font-bold font-serif">Family Gallery</h1>
+
+      <MediaUploader familyId={familyId ?? ""} onSuccess={refreshGallery} />
+      <VoiceRecorder familyId={familyId ?? ""} onSuccess={refreshGallery} />
+
+      <Tabs value={filter} onValueChange={setFilter}>
         <TabsList>
           <TabsTrigger value="all">All Media</TabsTrigger>
           <TabsTrigger value="image"><ImageIcon className="w-4 h-4 mr-2" /> Photos</TabsTrigger>
@@ -194,7 +309,7 @@ export default function Gallery() {
         <div className="text-center py-20 border-2 border-dashed rounded-xl">
           <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
           <h2 className="text-lg font-medium">No media found</h2>
-          <p className="text-muted-foreground">Upload some photos or videos to get started.</p>
+          <p className="text-muted-foreground">Upload photos, videos, or record a voice note to get started.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-max">
@@ -212,7 +327,8 @@ export default function Gallery() {
                   </div>
                 )}
                 {item.type === "audio" && (
-                  <div className="w-full h-full flex items-center justify-center bg-card p-4">
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-card p-4 gap-3">
+                    <Mic className="w-8 h-8 text-primary/60" />
                     <AudioPlayer url={item.url} />
                   </div>
                 )}
@@ -240,10 +356,10 @@ export default function Gallery() {
             <X className="w-6 h-6" />
           </Button>
           
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-4 text-white hover:bg-white/20 disabled:opacity-30" 
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-4 text-white hover:bg-white/20 disabled:opacity-30"
             disabled={lightboxIndex === 0}
             onClick={() => setLightboxIndex(lightboxIndex - 1)}
           >
@@ -258,10 +374,10 @@ export default function Gallery() {
             ) : null}
           </div>
           
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute right-4 text-white hover:bg-white/20 disabled:opacity-30" 
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 text-white hover:bg-white/20 disabled:opacity-30"
             disabled={lightboxIndex === items.length - 1}
             onClick={() => setLightboxIndex(lightboxIndex + 1)}
           >
