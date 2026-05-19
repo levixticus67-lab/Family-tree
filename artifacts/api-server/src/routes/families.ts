@@ -48,8 +48,10 @@ router.post("/families", requireAuth, requireActive, async (req: Request, res: R
   await db.collection("families").doc(familyId).set(data);
 
   // Assign gatekeeper role and familyId to creator
+  // Note: do not downgrade master_admin to gatekeeper
+  const roleFields = req.user!.role === "master_admin" ? {} : { role: "gatekeeper" };
   await db.collection("users").doc(req.user!.id).update({
-    role: "gatekeeper",
+    ...roleFields,
     familyId,
     status: "active",
   });
