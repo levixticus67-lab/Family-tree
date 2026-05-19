@@ -79,6 +79,7 @@
     "firebase": "^12.13.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
+    "qrcode.react": "^4.2.0",
     "react-draggable": "^4.5.0"
   }
 }
