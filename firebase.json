@@ -1,0 +1,13 @@
+{
+    "hosting": {
+      "public": "artifacts/family-tree/dist/public",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    }
+  }
+  
