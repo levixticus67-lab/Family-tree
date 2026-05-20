@@ -1,70 +1,48 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, ProtectedRoute, GatekeeperRoute } from "@/contexts/AuthContext";
-import { Layout } from "@/components/Layout";
+import { AuthProvider, ProtectedRoute, AdminRoute } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 
+import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
-import PendingApproval from "@/pages/pending-approval";
-import Feed from "@/pages/feed";
-import Tree from "@/pages/tree";
-import Profile from "@/pages/profile";
-import Gallery from "@/pages/gallery";
-import Events from "@/pages/events";
-import Capsules from "@/pages/capsules";
-import Notifications from "@/pages/notifications";
+import TreeWorkspace from "@/pages/tree-workspace";
+import AdminPanel from "@/pages/admin-panel";
 import Chat from "@/pages/chat";
-import Map from "@/pages/map";
-import Gatekeeper from "@/pages/gatekeeper";
-import SystemCockpit from "@/pages/system-cockpit";
 
-const queryClient = new QueryClient();
-
-function AuthenticatedApp() {
-  return (
-    <Layout>
-      <Switch>
-        <Route path="/feed" component={Feed} />
-        <Route path="/tree" component={Tree} />
-        <Route path="/profile/:memberId" component={Profile} />
-        <Route path="/gallery" component={Gallery} />
-        <Route path="/events" component={Events} />
-        <Route path="/capsules" component={Capsules} />
-        <Route path="/notifications" component={Notifications} />
-        <Route path="/chat" component={Chat} />
-        <Route path="/map" component={Map} />
-        <Route path="/gatekeeper">
-          <GatekeeperRoute>
-            <Gatekeeper />
-          </GatekeeperRoute>
-        </Route>
-        <Route path="/">
-          <Redirect to="/feed" />
-        </Route>
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 2 * 60 * 1000,
+    },
+  },
+});
 
 function Router() {
   return (
     <Switch>
+      <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
-      <Route path="/pending-approval" component={PendingApproval} />
-      <Route path="/system-cockpit">
-        <GatekeeperRoute>
-          <SystemCockpit />
-        </GatekeeperRoute>
-      </Route>
-      <Route path="/.*">
+      <Route path="/app">
         <ProtectedRoute>
-          <AuthenticatedApp />
+          <TreeWorkspace />
         </ProtectedRoute>
+      </Route>
+      <Route path="/app/chat">
+        <ProtectedRoute>
+          <div className="h-screen">
+            <Chat />
+          </div>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin">
+        <AdminRoute>
+          <AdminPanel />
+        </AdminRoute>
       </Route>
       <Route component={NotFound} />
     </Switch>
