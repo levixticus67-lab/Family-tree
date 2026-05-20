@@ -385,7 +385,7 @@ export default function TreeWorkspace() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                (user?.displayName ?? "?")[0].toUpperCase()
+                (user?.displayName?.[0] ?? "?").toUpperCase()
               )}
             </button>
             <div
