@@ -1,0 +1,22 @@
+name: Deploy API to Render
+
+  on:
+    push:
+      branches:
+        - main
+      paths:
+        - 'artifacts/api-server/**'
+        - 'lib/**'
+        - 'pnpm-lock.yaml'
+        - 'pnpm-workspace.yaml'
+        - 'render.yaml'
+
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Trigger Render Deploy
+          run: |
+            curl -s --fail-with-body \
+              -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" | cat
+  
