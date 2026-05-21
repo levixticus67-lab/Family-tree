@@ -23,7 +23,7 @@ export default function Login() {
 
   useEffect(() => {
     if (user) setLocation(user.role === "master_admin" ? "/admin" : "/app");
-  }, [user, setLocation]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
