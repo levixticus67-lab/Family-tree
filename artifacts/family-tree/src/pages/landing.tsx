@@ -51,7 +51,7 @@ export default function Landing() {
     if (user) {
       setLocation(user.role === "master_admin" ? "/admin" : "/app");
     }
-  }, [user, setLocation]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const ctx = gsap.context(() => {
