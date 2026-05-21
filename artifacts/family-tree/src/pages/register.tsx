@@ -31,7 +31,7 @@ export default function Register() {
 
   useEffect(() => {
     if (user) setLocation(user.role === "master_admin" ? "/admin" : "/app");
-  }, [user, setLocation]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
