@@ -9,7 +9,7 @@ import ReactFlow, {
   BackgroundVariant,
   Panel,
 } from "reactflow";
-import type { Node, Edge, OnNodeDragStop } from "reactflow";
+import type { Node, Edge } from "reactflow";
 import "reactflow/dist/style.css";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -159,8 +159,8 @@ export default function TreeWorkspace() {
     setEdges(buildEdges(relationships));
   }, [members, relationships, selectedMember]);
 
-  const handleNodeDragStop: OnNodeDragStop = useCallback(
-    (_, node) => {
+  const handleNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => {
       if (!familyId) return;
       updateMember.mutate(
         {
