@@ -62,9 +62,11 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
+  // setLocation is intentionally excluded from deps — wouter recreates it on every
+  // render, which would cause an infinite loop (React Error #185).
   useEffect(() => {
     if (!isLoading && !user) setLocation("/login");
-  }, [user, isLoading, setLocation]);
+  }, [user, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <LoadingScreen />;
   if (!user) return null;
@@ -77,7 +79,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && (!user || !isMasterAdmin)) setLocation("/app");
-  }, [user, isLoading, isMasterAdmin, setLocation]);
+  }, [user, isLoading, isMasterAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <LoadingScreen />;
   if (!isMasterAdmin) return null;
@@ -90,7 +92,7 @@ export function GatekeeperRoute({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && (!user || !isGatekeeper)) setLocation("/app");
-  }, [user, isLoading, isGatekeeper, setLocation]);
+  }, [user, isLoading, isGatekeeper]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return null;
   if (!isGatekeeper) return null;
