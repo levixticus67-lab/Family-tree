@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode, useEffect } from "react";
+import { createContext, useContext, useCallback, useMemo, type ReactNode, useEffect } from "react";
 import { useGetCurrentUser, getGetCurrentUserQueryKey } from "@workspace/api-client-react";
 import type { User } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,29 +18,38 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
 
-  // Stabilize the query key so it doesn't produce a new array reference on
-  // every render, which would confuse React Query's cache lookup.
+  // Stabilize the query key — a new array reference every render would cause
+  // React Query to treat it as a distinct query on every render.
   const currentUserQueryKey = useMemo(() => getGetCurrentUserQueryKey(), []);
 
   const { data: user, isLoading } = useGetCurrentUser({
     query: {
       retry: false,
       queryKey: currentUserQueryKey,
-    }
+    },
   });
 
   const familyId = user?.familyId ?? null;
   const isGatekeeper = user?.role === "gatekeeper" || user?.role === "master_admin";
   const isMasterAdmin = user?.role === "master_admin";
 
-  const logout = () => {
+  // useCallback keeps `logout` reference stable so that the memoized context
+  // value below doesn't recreate on every render.
+  const logout = useCallback(() => {
     localStorage.removeItem("auth_token");
     qc.clear();
     window.location.href = "/";
-  };
+  }, [qc]);
+
+  // Memoize the entire context value so that consumers only re-render when
+  // auth state actually changes — not on every AuthProvider render.
+  const ctxValue = useMemo<AuthContextType>(
+    () => ({ user: user ?? null, isLoading, familyId, isGatekeeper, isMasterAdmin, logout }),
+    [user, isLoading, familyId, isGatekeeper, isMasterAdmin, logout],
+  );
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, isLoading, familyId, isGatekeeper, isMasterAdmin, logout }}>
+    <AuthContext.Provider value={ctxValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -67,7 +76,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  // setLocation is intentionally excluded from deps — wouter recreates it on every
+  // setLocation intentionally excluded from deps — wouter recreates it on every
   // render, which would cause an infinite loop (React Error #185).
   useEffect(() => {
     if (!isLoading && !user) setLocation("/login");
