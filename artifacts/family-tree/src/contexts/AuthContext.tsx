@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode, useEffect } from "react";
+import { createContext, useContext, useMemo, type ReactNode, useEffect } from "react";
 import { useGetCurrentUser, getGetCurrentUserQueryKey } from "@workspace/api-client-react";
 import type { User } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,10 +17,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
+
+  // Stabilize the query key so it doesn't produce a new array reference on
+  // every render, which would confuse React Query's cache lookup.
+  const currentUserQueryKey = useMemo(() => getGetCurrentUserQueryKey(), []);
+
   const { data: user, isLoading } = useGetCurrentUser({
     query: {
       retry: false,
-      queryKey: getGetCurrentUserQueryKey(),
+      queryKey: currentUserQueryKey,
     }
   });
 
