@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Handle, Position, type NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { UserPlus, ChevronUp, ChevronDown, Heart } from "lucide-react";
 
 interface MemberData {
@@ -28,7 +28,7 @@ const genderColors: Record<string, string> = {
   unknown: "hsl(var(--primary))",
 };
 
-function TreeNode({ data }: NodeProps<NodeData>) {
+function TreeNode({ data }: NodeProps & { data: NodeData }) {
   const { member, isSelected, onSelect, onAddParent, onAddChild, onAddSpouse } = data;
   const initials = `${(member.firstName ?? "")[0] ?? ""}${(member.lastName ?? "")[0] ?? ""}`.toUpperCase();
   const birthYear = member.birthDate ? new Date(member.birthDate).getFullYear() : null;
@@ -45,9 +45,7 @@ function TreeNode({ data }: NodeProps<NodeData>) {
         cursor: "pointer",
         borderRadius: 12,
         border: `2px solid ${isSelected ? "hsl(var(--primary))" : "hsl(var(--border))"}`,
-        background: isSelected
-          ? "hsl(var(--card))"
-          : "hsl(var(--card))",
+        background: "hsl(var(--card))",
         boxShadow: isSelected
           ? "var(--glow-primary), 0 4px 24px rgba(0,0,0,0.3)"
           : "0 4px 20px rgba(0,0,0,0.2)",
