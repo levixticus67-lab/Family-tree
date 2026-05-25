@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -22,22 +22,35 @@ import { useToast } from "@/hooks/use-toast";
 import { MapPin, Calendar, Clock, Edit2, Play, Pause } from "lucide-react";
 import { format } from "date-fns";
 
+// Bar heights are computed once per component mount, not on every render.
+// Previously Math.random() was called inline in JSX which caused new values
+// every render cycle and could trigger unnecessary re-render cascades.
+function useStableBarHeights(count: number) {
+  return useMemo(
+    () => Array.from({ length: count }, () => Math.max(20, Math.random() * 100)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+}
+
 function AudioPlayer({ url }: { url: string }) {
   const [playing, setPlaying] = useState(false);
+  const barHeights = useStableBarHeights(20);
+
   return (
     <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl border border-border">
       <Button variant="secondary" size="icon" className="rounded-full" onClick={() => setPlaying(!playing)}>
         {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
       </Button>
       <div className="flex-1 flex items-center gap-1 overflow-hidden h-8">
-        {[...Array(20)].map((_, i) => (
-          <div 
-            key={i} 
+        {barHeights.map((height, i) => (
+          <div
+            key={i}
             className={`w-1 bg-primary/40 rounded-full transition-all duration-300 ${playing ? 'animate-pulse' : ''}`}
-            style={{ 
-              height: `${Math.max(20, Math.random() * 100)}%`,
-              animationDelay: `${i * 0.05}s` 
-            }} 
+            style={{
+              height: `${height}%`,
+              animationDelay: `${i * 0.05}s`
+            }}
           />
         ))}
       </div>
@@ -62,7 +75,7 @@ export default function Profile() {
   const { data: feed } = useGetFamilyFeed(
     familyId ?? "",
     { memberId },
-    { query: { enabled: !!familyId, queryKey: getGetFamilyFeedQueryKey(familyId ?? "") } } // Assuming feed query handles memberId
+    { query: { enabled: !!familyId, queryKey: getGetFamilyFeedQueryKey(familyId ?? "") } }
   );
 
   const { data: media } = useGetMediaGallery(
@@ -118,15 +131,15 @@ export default function Profile() {
   return (
     <div className="container max-w-6xl mx-auto p-4 md:p-8 h-full overflow-y-auto">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        
+
         {/* Left Col - Info */}
         <div className="md:col-span-1 space-y-6">
           <div className="glass-panel rounded-2xl p-6 flex flex-col items-center text-center relative">
             {isGatekeeper && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="absolute top-2 right-2" 
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2"
                 onClick={() => {
                   setEditData({ bio: member.bio || "", birthDate: member.birthDate || "", deathDate: member.deathDate || "", birthPlace: member.birthPlace || "" });
                   setEditOpen(true);
@@ -136,7 +149,7 @@ export default function Profile() {
                 <Edit2 className="w-4 h-4" />
               </Button>
             )}
-            
+
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-background shadow-lg mb-4 bg-primary/10 flex items-center justify-center text-primary text-3xl font-bold">
               {member.avatarUrl ? (
                 <img src={member.avatarUrl} alt={member.firstName} className="w-full h-full object-cover" />
@@ -144,9 +157,9 @@ export default function Profile() {
                 `${member.firstName[0]}${member.lastName?.[0] || ""}`
               )}
             </div>
-            
+
             <h1 className="text-2xl font-bold text-foreground font-sans">{member.firstName} {member.lastName}</h1>
-            
+
             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mt-2">
               {member.birthDate && (
                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(member.birthDate), "yyyy")}</span>
@@ -155,7 +168,7 @@ export default function Profile() {
                 <span className="flex items-center gap-1">- {format(new Date(member.deathDate), "yyyy")}</span>
               )}
             </div>
-            
+
             {member.birthPlace && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
                 <MapPin className="w-3 h-3" /> {member.birthPlace}
