@@ -114,12 +114,24 @@ export default function TreeWorkspace() {
 
   const { data: members = [], isLoading: loadingMembers } = useListMembers(
     familyId ?? "",
-    { query: { enabled: !!familyId, queryKey: getListMembersQueryKey(familyId ?? "") } }
+    {
+      query: {
+        enabled: !!familyId,
+        queryKey: getListMembersQueryKey(familyId ?? ""),
+        refetchOnWindowFocus: false,
+      },
+    }
   );
 
   const { data: relationships = [], isLoading: loadingRels } = useListRelationships(
     familyId ?? "",
-    { query: { enabled: !!familyId, queryKey: getListRelationshipsQueryKey(familyId ?? "") } }
+    {
+      query: {
+        enabled: !!familyId,
+        queryKey: getListRelationshipsQueryKey(familyId ?? ""),
+        refetchOnWindowFocus: false,
+      },
+    }
   );
 
   const updateMember = useUpdateMember();
@@ -137,7 +149,9 @@ export default function TreeWorkspace() {
       .catch(() => {});
   }, [familyId]);
 
-  // Sync React Flow nodes/edges when data changes
+  // Rebuild nodes/edges ONLY when server data changes — NOT on selection changes.
+  // selectedMember is intentionally excluded from this effect to prevent the
+  // setNodes call from triggering a React update cascade (error #185).
   useEffect(() => {
     const positions = buildPositions(members);
 
@@ -147,7 +161,7 @@ export default function TreeWorkspace() {
       position: positions.get(m.id) ?? { x: 0, y: 0 },
       data: {
         member: m,
-        isSelected: selectedMember?.id === m.id,
+        isSelected: false, // kept in sync by the selection effect below
         onSelect: () => setSelectedMember(m),
         onAddParent: () => setAddRelativeFor({ member: m, type: "parent" }),
         onAddChild: () => setAddRelativeFor({ member: m, type: "child" }),
@@ -157,7 +171,19 @@ export default function TreeWorkspace() {
 
     setNodes(newNodes);
     setEdges(buildEdges(relationships));
-  }, [members, relationships, selectedMember]);
+  }, [members, relationships]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lightweight selection sync — only updates the isSelected flag on affected
+  // nodes without rebuilding the entire node list. This avoids the update cascade
+  // that caused React error #185.
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        data: { ...n.data, isSelected: n.id === selectedMember?.id },
+      }))
+    );
+  }, [selectedMember]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNodeDragStop = useCallback(
     (_: React.MouseEvent, node: Node) => {
