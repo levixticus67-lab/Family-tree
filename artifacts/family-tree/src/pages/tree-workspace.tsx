@@ -1,16 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import ReactFlow, {
-  Background,
-  Controls,
-  MiniMap,
-  useNodesState,
-  useEdgesState,
-  MarkerType,
-  BackgroundVariant,
-  Panel,
-} from "reactflow";
-import type { Node, Edge } from "reactflow";
-import "reactflow/dist/style.css";
+import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, MarkerType, BackgroundVariant, Panel } from "@xyflow/react";
+import type { Node, Edge } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMembers,
@@ -174,8 +165,7 @@ export default function TreeWorkspace() {
   }, [members, relationships]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lightweight selection sync — only updates the isSelected flag on affected
-  // nodes without rebuilding the entire node list. This avoids the update cascade
-  // that caused React error #185.
+  // nodes without rebuilding the entire node list.
   useEffect(() => {
     setNodes((nds) =>
       nds.map((n) => ({
@@ -186,7 +176,7 @@ export default function TreeWorkspace() {
   }, [selectedMember]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNodeDragStop = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+    (_: MouseEvent, node: Node) => {
       if (!familyId) return;
       updateMember.mutate(
         {
