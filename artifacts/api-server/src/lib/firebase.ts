@@ -19,9 +19,15 @@ function initFirebase() {
     throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON");
   }
 
-  const databaseURL = process.env.VITE_FIREBASE_DATABASE_URL;
+  // Accept both FIREBASE_DATABASE_URL and the legacy VITE_FIREBASE_DATABASE_URL name
+  const databaseURL =
+    process.env.FIREBASE_DATABASE_URL ??
+    process.env.VITE_FIREBASE_DATABASE_URL;
+
   if (!databaseURL) {
-    throw new Error("VITE_FIREBASE_DATABASE_URL is not set");
+    throw new Error(
+      "FIREBASE_DATABASE_URL is not set (also checked VITE_FIREBASE_DATABASE_URL)"
+    );
   }
 
   admin.initializeApp({
