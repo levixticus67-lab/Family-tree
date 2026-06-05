@@ -47,9 +47,3 @@ jobs:
           projectId: family-tree-281ca
           entryPoint: ./artifacts/family-tree
           channelId: live
-
-      - name: Trigger Render API Server Deploy
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
-        run: |
-          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-          echo "Render deploy triggered"
